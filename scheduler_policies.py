@@ -106,7 +106,7 @@ class SchedulerPolicies:
         self.time_limit_seconds = 20
         self.max_qubits = 156
         self.forced_threshold = 12
-        self.machine_ibm = 'ibm_fez' #'ibm_torino' #'ibm_fez'  #''local'
+        self.machine_ibm = 'local' #'ibm_torino' #'ibm_fez'  #''local'
         self.machine_aws = 'arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q' #'local' #'arn:aws:braket:::device/quantum-simulator/amazon/sv1'
         self.executeCircuitIBM = executeCircuitIBM()
         # Cargar modelo de ML si existe, sino entrenarlo
@@ -247,17 +247,60 @@ class SchedulerPolicies:
                 q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
                 new_qc = QuantumCircuit(*qc_original.qregs, q_sentinel, *qc_original.cregs, *c_flags)
                 
+                # --- 1. EVALUACIÓN PRE-EJECUCIÓN (Modos Initial, RUS o WHILE) ---
                 idx = 0
-                for mapping in layout_fisico:
+                for i, mapping in enumerate(layout_fisico):
                     modo = mapping.get('mode', 'standard')
-                    for _ in (mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
-                        if modo in ('dynamic_local_t1', 'dynamic_local_initial_t1'):
-                            new_qc.x(q_sentinel[idx])
-                        elif modo in ('dynamic_local_ramsey', 'dynamic_local_initial_ramsey'):
-                            new_qc.h(q_sentinel[idx])
-                        idx += 1
-                        
+                    
+                    # Detectamos qué directiva de escudo temporal se solicita
+                    is_island_initial = 'initial' in modo or 'rus' in modo or 'while' in modo
+                    is_island_rus = 'rus' in modo      # Compatibilidad IBM (Loop Unrolling)
+                    is_island_while = 'while' in modo  # Bucle Nativo OpenQASM 3.0
+                    
+                    if is_island_initial:
+                        for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
+                            
+                            # 1er Intento: Preparación y medición inicial
+                            if 't1' in modo:
+                                new_qc.x(q_sentinel[idx]) # Preparar |1>
+                                new_qc.x(q_sentinel[idx]) # Decodificar a |0>
+                            elif 'ramsey' in modo:
+                                new_qc.h(q_sentinel[idx])
+                                new_qc.h(q_sentinel[idx])
+                            new_qc.measure(q_sentinel[idx], c_flags[i][j])
+
+                            # A) BUCLE NATIVO (Soportado por simuladores puros)
+                            if is_island_while:
+                                with new_qc.while_loop((c_flags[i][j], 1)):
+                                    new_qc.x(q_sentinel[idx]) # Forzar bajada a |0>
+                                    if 't1' in modo:
+                                        new_qc.x(q_sentinel[idx])
+                                        new_qc.x(q_sentinel[idx])
+                                    elif 'ramsey' in modo:
+                                        new_qc.h(q_sentinel[idx])
+                                        new_qc.h(q_sentinel[idx])
+                                    new_qc.measure(q_sentinel[idx], c_flags[i][j])
+
+                            # B) BUCLE SIMULADO (Loop Unrolling, Soportado por IBM Hardware)
+                            elif is_island_rus:
+                                for _ in range(3):
+                                    with new_qc.if_test((c_flags[i][j], 1)):
+                                        new_qc.x(q_sentinel[idx]) # Forzar bajada a |0>
+                                        if 't1' in modo:
+                                            new_qc.x(q_sentinel[idx])
+                                            new_qc.x(q_sentinel[idx])
+                                        elif 'ramsey' in modo:
+                                            new_qc.h(q_sentinel[idx])
+                                            new_qc.h(q_sentinel[idx])
+                                        new_qc.measure(q_sentinel[idx], c_flags[i][j])
+                                        
+                            idx += 1
+                    else:
+                        idx += len(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']])
+
+                # --- 2. SEPARACIÓN DE INSTRUCCIONES ---
                 island_instructions = {i: [] for i in range(len(layout_fisico))}
+                island_measures = {i: [] for i in range(len(layout_fisico))}
                 island_ranges = {}
                 current_offset = 0
                 
@@ -274,34 +317,59 @@ class SchedulerPolicies:
                                 island_instructions[i].append(inst)
                                 break
                                 
-                if not is_dynamic_local_initial:
-                    for i in range(len(layout_fisico)):
-                        mitad = len(island_instructions[i]) // 2
-                        for inst in island_instructions[i][:mitad]:
-                            new_qc.append(inst)
+                for m_inst in medidas_originales:
+                    if m_inst.qubits:
+                        q_idx = qc_original.find_bit(m_inst.qubits[0]).index
+                        for i, r in island_ranges.items():
+                            if q_idx in r:
+                                island_measures[i].append(m_inst)
+                                break
 
-                    new_qc.barrier()
-                else:
-                    new_qc.delay(1000, q_sentinel, unit='ns')
-                    new_qc.barrier()
-                
+                # --- 3. CONSTRUCCIÓN ASÍNCRONA DE LAS ISLAS ---
                 idx = 0
                 for i, mapping in enumerate(layout_fisico):
                     modo = mapping.get('mode', 'standard')
-                    for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
-                        if modo in ('dynamic_local_t1', 'dynamic_local_initial_t1'):
-                            new_qc.x(q_sentinel[idx])
-                        elif modo in ('dynamic_local_ramsey', 'dynamic_local_initial_ramsey'):
-                            new_qc.h(q_sentinel[idx])
-                        new_qc.measure(q_sentinel[idx], c_flags[i][j])
-                        idx += 1
-                        
-                for i in range(len(layout_fisico)):
-                    inicio = 0 if is_dynamic_local_initial else len(island_instructions[i]) // 2
-                    with new_qc.if_test((c_flags[i], 0)):
-                        for inst in island_instructions[i][inicio:]:
-                            new_qc.append(inst)
+                    is_island_initial = 'initial' in modo or 'rus' in modo or 'while' in modo
+                    
+                    if is_island_initial:
+                        # 3A. PUERTAS LÓGICAS BAJO CONDICIÓN
+                        with new_qc.if_test((c_flags[i], 0)):
+                            for inst in island_instructions[i]:
+                                new_qc.append(inst.operation, qargs=inst.qubits, cargs=inst.clbits)
+                                
+                        # 3B. MEDICIONES INCONDICIONALES ASÍNCRONAS
+                        for inst in island_measures[i]:
+                            new_qc.append(inst.operation, qargs=inst.qubits, cargs=inst.clbits)
                             
+                        idx += len(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']])
+                    else:
+                        # MODO MID-CIRCUIT TRADICIONAL
+                        mitad = len(island_instructions[i]) // 2
+                        for inst in island_instructions[i][:mitad]:
+                            new_qc.append(inst.operation, qargs=inst.qubits, cargs=inst.clbits)
+                            
+                        for j, _ in enumerate(mapping['sentinel'] if isinstance(mapping['sentinel'], list) else [mapping['sentinel']]):
+                            if 't1' in modo:
+                                new_qc.x(q_sentinel[idx])
+                            elif 'ramsey' in modo:
+                                new_qc.h(q_sentinel[idx])
+                            new_qc.measure(q_sentinel[idx], c_flags[i][j])
+                            idx += 1
+                            
+                        with new_qc.if_test((c_flags[i], 0)):
+                            for inst in island_instructions[i][mitad:]:
+                                new_qc.append(inst.operation, qargs=inst.qubits, cargs=inst.clbits)
+                                
+                        for inst in island_measures[i]:
+                            new_qc.append(inst.operation, qargs=inst.qubits, cargs=inst.clbits)
+
+                    # === Reincorporamos las mediciones SOLO si NO estamos en el modo asíncrono ===
+                if not is_dynamic_local:
+                    new_qc.barrier()
+                    for m_inst in medidas_originales:
+                        new_qc.append(m_inst)
+                        
+                loc['circuit'] = new_qc
             elif is_dynamic_global:
                 total_centinelas = sum(len(m['sentinel'] if isinstance(m['sentinel'], list) else [m['sentinel']]) for m in layout_fisico)
                 q_sentinel = QuantumRegister(total_centinelas, 'q_sentinel')
@@ -409,9 +477,12 @@ class SchedulerPolicies:
                         idx += 1
             
             # === Reincorporamos las mediciones de los datos al final protegidas por una barrera ===
-            new_qc.barrier()
-            for m_inst in medidas_originales:
-                new_qc.append(m_inst)
+            if not is_dynamic_local:
+                new_qc.barrier()
+                for m_inst in medidas_originales:
+                    new_qc.append(m_inst)
+                
+            loc['circuit'] = new_qc
                 
             loc['circuit'] = new_qc
 

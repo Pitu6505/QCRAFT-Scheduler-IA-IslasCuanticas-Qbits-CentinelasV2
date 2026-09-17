@@ -1,0 +1,44 @@
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000002CE93A4F230>
+Cola Seleccionada:[{'id': '170122166378669951562184311994554125132', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '212215395593783959830846494078926861456', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.203125
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000002284A12B8C0>
+Cola Seleccionada:[{'id': '96613734787557143214199766640918579961', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '193082561608256481874712404984160304336', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.171875
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x0000022E4758B8C0>
+Cola Seleccionada:[{'id': '166312118359369936256575401103721515853', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '4154555970314103564427762167511338217', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.1875
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000001A127A0B230>
+Cola Seleccionada:[{'id': '329565109948739540008836542003408077678', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '53967391472741381022228449750934512591', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.15625
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000001FA98C2B770>
+Cola Seleccionada:[{'id': '326564193638564423697515445729151802729', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}, {'id': '259864740643957297298846456792885625232', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}]
+Layout Físico:[{'data': [5, 4, 3], 'sentinel': [2], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 136, 123], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.1875
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x0000022FDB99B770>
+Cola Seleccionada:[{'id': '151881372313441866497449910057351931525', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}, {'id': '317942032666243789813791378528047660347', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}]
+Layout Físico:[{'data': [5, 4, 3], 'sentinel': [2], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 136, 123], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.265625
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000001E98685F380>
+Cola Seleccionada:[{'id': '64892971932894683412585163590499473241', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '327025149797049787512181235393868116954', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.203125
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000002C9F970B380>
+Cola Seleccionada:[{'id': '64978434361606422492927119729050927656', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '299689582466127317958741789646735052794', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.28125
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000002460D1CB770>
+Cola Seleccionada:[{'id': '306521521986896337345498758514099503989', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}, {'id': '104670255469842579240962697745530536879', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}]
+Layout Físico:[{'data': [5, 4, 3], 'sentinel': [2], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 136, 123], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.265625
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x00000155BAADBA10>
+Cola Seleccionada:[{'id': '312743983784744698716890711137272196314', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '219749973915728643406122037747466475680', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_rus_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_rus_t1'}]
+Tiempo Ejecucion:0.25
+Cola Formateada con edges:<circuit_queue.CircuitQueue object at 0x000002158A5FFA10>
+Cola Seleccionada:[{'id': '6799142908682128652682816643636559009', 'size': 4, 'edges': [(0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]}, {'id': '196824771396317212172060297365267662906', 'size': 3, 'edges': [(0, 1), (0, 2), (1, 2)]}]
+Layout Físico:[{'data': [5, 4, 3, 2], 'sentinel': [1], 'mode': 'dynamic_local_while_t1'}, {'data': [144, 143, 142], 'sentinel': [145], 'mode': 'dynamic_local_while_t1'}]
+Tiempo Ejecucion:0.5

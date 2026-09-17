@@ -1,0 +1,9 @@
+Fecha_Hora;Job_ID;Circuito_Nombre;Layout_Circuito;Layout_Centinela;Modo_Centinela;Shots_Totales;Shots_Validos;Supervivencia_(%)
+2026-09-17 11:18:16;Simulacion;adder_n4_vq.py;[5- 4- 3- 2];[1];dynamic_local_rus_t1;10000;349;3.49
+2026-09-17 11:18:16;Simulacion;grover_3_vq.py;[144- 143- 142];[145];dynamic_local_rus_t1;10000;165;1.65
+2026-09-17 11:25:44;Simulacion;adder_n4_vq.py;[5- 4- 3- 2];[1];dynamic_local_rus_t1;10000;357;3.57
+2026-09-17 11:25:44;Simulacion;grover_3_vq.py;[144- 143- 142];[145];dynamic_local_rus_t1;10000;150;1.50
+2026-09-17 12:20:19;Simulacion;adder_n4_vq.py;[5- 4- 3- 2];[1];dynamic_local_rus_t1;10000;9996;99.96
+2026-09-17 12:20:19;Simulacion;grover_3_vq.py;[144- 143- 142];[145];dynamic_local_rus_t1;10000;9999;99.99
+2026-09-17 12:26:41;Simulacion;adder_n4_vq.py;[5- 4- 3- 2];[1];dynamic_local_while_t1;10000;10000;100.00
+2026-09-17 12:26:41;Simulacion;grover_3_vq.py;[144- 143- 142];[145];dynamic_local_while_t1;10000;10000;100.00

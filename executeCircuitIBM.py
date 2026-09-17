@@ -223,9 +223,12 @@ class executeCircuitIBM:
             # 1. Cargar el ruido real del backend IBM Fez
             backend_real = self.service.backend("ibm_fez")
             noise_model = NoiseModel.from_backend(backend_real)
+            
+            # MAGIA AQUÍ: Añadimos explícitamente las operaciones de control de flujo 
+            # al set de instrucciones permitido, para que el transpilador no se queje.
+            puertas_permitidas = noise_model.basis_gates + ['if_else', 'while_loop', 'reset', 'measure', 'delay', 'barrier']
 
-            # 2. Si existe un layout físico calculado por la política, lo aplicamos
-            #    y reducimos el coupling_map al subconjunto de qubits usados.
+            # 2. Si existe un layout físico calculado por la política...
             flat_layout = self._flatten_layout(layout_fisico) if layout_fisico is not None else None
             if flat_layout is not None:
                 used_qubits = sorted(set(flat_layout))
@@ -236,24 +239,30 @@ class executeCircuitIBM:
                     if u in remap and v in remap
                 ]
 
+                # Quitamos method='matrix_product_state' para soportar control dinámico
                 backend = AerSimulator(
                     noise_model=noise_model,
-                    coupling_map=reduced_coupling,
-                    method='matrix_product_state'
+                    coupling_map=reduced_coupling
                 )
+                
+                # Transpilamos pasando basis_gates en lugar del backend entero
                 qc_basis = transpile(
                     circuit,
-                    backend=backend,
+                    basis_gates=puertas_permitidas,
                     optimization_level=0,
                     initial_layout=flat_layout
                 )
             else:
                 backend = AerSimulator(
                     noise_model=noise_model,
-                    coupling_map=backend_real.coupling_map,
-                    method='matrix_product_state'
+                    coupling_map=backend_real.coupling_map
                 )
-                qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+                
+                qc_basis = transpile(
+                    circuit, 
+                    basis_gates=puertas_permitidas, 
+                    optimization_level=0
+                )
 
             sampler = BackendSamplerV2(backend=backend)
             job = sampler.run([qc_basis], shots=x)
