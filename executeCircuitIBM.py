@@ -1,0 +1,375 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# import libraries
+from platform import machine
+
+from psutil import users
+from qiskit import transpile
+import qiskit.providers
+from qiskit_ibm_runtime import SamplerV2 as Sampler, QiskitRuntimeService
+from qiskit import QuantumCircuit
+from qiskit.circuit.library import MCXGate
+from qiskit_aer import AerSimulator
+import qiskit.qasm3
+import json
+import os
+import qiskit
+import numpy as np
+import re
+import threading
+
+
+class executeCircuitIBM:
+    def __init__(self):
+        self.transpile_lock = threading.Lock()
+        self.condition = threading.Condition()
+        self.service = self.load_account_ibm()  # Usar credenciales personalizadas
+        all_jobs = self.service.jobs()
+        self.queued_jobs = len([job for job in all_jobs if job.status() == qiskit.providers.JobStatus.QUEUED])  # Number of queued jobs de la cola generado
+
+
+    def load_account_ibm(self) -> QiskitRuntimeService:
+        """
+        Loads the IBM Quantum account.
+
+        Returns:
+            QiskitRuntimeService: The service with the IBM Quantum account loaded.
+        """
+        # Load your IBM Quantum account
+        return QiskitRuntimeService(channel="ibm_cloud",
+                                   token="",
+                                   instance="")
+
+    def obtain_machine(self, service:QiskitRuntimeService ,machine:str) -> qiskit.providers.BackendV2:
+        """
+        Obtains the information of the machine.
+
+        Args:
+            QiskitRuntimeService: The service to obtain the machine.        
+            machine (str): The machine to obtain the information.
+
+        Returns:
+            qiskit.providers.BackendV2: The IBM backend.
+        """
+        # Load your IBM Quantum account
+        backend = service.backend(machine)
+        return backend
+
+
+    def code_to_circuit_ibm(self, code_str:str) -> qiskit.QuantumCircuit: 
+        """
+        Transforms a string representation (OpenQASM 3.0 or Python script) 
+        of a circuit into a Qiskit circuit object.
+        """
+        # 1. Si es código OpenQASM 3.0 nativo
+        if "OPENQASM 3.0" in code_str:
+            try:
+                circuit = qiskit.qasm3.loads(code_str)
+                print("✅ Circuito cargado correctamente desde OpenQASM 3.0")
+                return circuit
+            except Exception as e:
+                print(f"❌ Error al cargar OpenQASM 3.0: {e}")
+                raise ValueError(f"Invalid QASM3 code: {e}")
+                
+        # 2. Si es un script de Python concatenado (Descargado de GitHub)
+        else:
+            try:
+                local_vars = {}
+                # Eliminamos el "return circuit" que inyecta create_circuit, 
+                # ya que exec() explota si ve un return fuera de una función
+                clean_code = code_str.replace("return circuit", "")
+                
+                # Ejecutamos el string de Python en un entorno seguro y capturamos las variables
+                exec(clean_code, globals(), local_vars)
+                
+                # Rescatamos el objeto QuantumCircuit ensamblado
+                if 'circuit' in local_vars:
+                    return local_vars['circuit']
+                else:
+                    raise ValueError("No se generó el objeto 'circuit' al compilar el script.")
+                    
+            except Exception as e:
+                print(f"❌ Error al ejecutar el código Python de Qiskit: {e}")
+                raise ValueError(f"Invalid Python circuit code: {e}")
+
+
+    def get_transpiled_circuit_depth_ibm(self, circuit:QuantumCircuit, backend:qiskit.providers.BackendV2) -> int:
+        """
+        Transpiles a circuit and returns its depth.
+
+        Args:
+            circuit (QuantumCircuit): The circuit to transpile.        
+            backend (qiskit.providers.BackendV2): The machine to transpile the circuit
+
+        Returns:
+            int: The depth of the transpiled circuit.
+        """
+        # Load your IBM Quantum account
+        with self.transpile_lock:
+            qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+
+        return qc_basis.depth()
+
+    def _flatten_layout(self, layout_fisico):
+        """Convierte un layout de islas a una lista plana de qubits físicos."""
+        if layout_fisico is None:
+            return None
+
+        flat_layout = []
+        for item in layout_fisico:
+            if isinstance(item, dict):
+                if 'data' in item:
+                    flat_layout.extend(item['data'])
+                if 'sentinel' in item:
+                    sentinels = item['sentinel']
+                    if isinstance(sentinels, list):
+                        flat_layout.extend(sentinels)
+                    else:
+                        flat_layout.append(sentinels)
+            elif isinstance(item, (list, tuple)):
+                flat_layout.extend(item)
+            else:
+                flat_layout.append(item)
+
+        return flat_layout
+
+    # Ejecutar el circuito
+    def runIBM(self, machine:str, circuit:QuantumCircuit, shots:int) -> dict:
+        """
+        Executes a circuit in the IBM cloud.
+
+        Args:
+            machine (str): The machine to execute the circuit.        
+            circuit (QuantumCircuit): The circuit to execute.        
+            shots (int): The number of shots to execute the circuit.
+
+        Returns:
+            dict: The results of the circuit execution.
+        """
+
+        if machine == "local":
+            backend = AerSimulator()
+            x = int(shots)
+            job = backend.run(circuit, shots=x)
+            result = job.result()
+            counts = result.get_counts()
+            return counts
+        else:
+            # Load your IBM Quantum account
+
+            service = self.service
+            backend = service.backend(machine)
+            qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+            x = int(shots)
+            job = backend.run(qc_basis, shots=x) 
+            result = job.result()
+            counts = result.get_counts()
+            return counts
+
+    def retrieve_result_ibm(self, id) -> dict:
+        """
+        Retrieves the results of a circuit execution in the IBM cloud.
+
+        Args:
+            id (str): The id of the job to retrieve the results from.
+
+        Returns:
+            dict: The results of the task execution.
+        """
+        # Load your IBM Quantum account
+        service = self.service
+        job = service.job(id)
+        result = job.result()
+        # counts = result[0].data.creg_c.get_counts()
+        data_bin = result[0].data
+        
+        # Buscar todos los nombres de registros clásicos válidos
+        creg_names = [k for k in dir(data_bin) if not k.startswith('_')]
+        
+        # Combinar los diccionarios de resultados
+        counts_combinados = {}
+        # Iterar sobre las filas de resultados en crudo (bitstrings)
+        primer_registro = getattr(data_bin, creg_names[0])
+        for i in range(primer_registro.num_shots):
+            bitstring_completo = ""
+            for name in creg_names:
+                # Extraer el valor del bit para este shot específico
+                bit_val = getattr(data_bin, name).get_int(i)
+                longitud = getattr(data_bin, name).num_bits
+                # Formatear a binario rellenando con ceros
+                bitstring_completo += format(bit_val, f'0{longitud}b') + " "
+            
+            bitstring_completo = bitstring_completo.strip()
+            if bitstring_completo in counts_combinados:
+                counts_combinados[bitstring_completo] += 1
+            else:
+                counts_combinados[bitstring_completo] = 1
+                
+        counts = counts_combinados
+        return counts
+
+    def runIBM_save(self, machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list, layout_fisico:list=None) -> dict:
+        """
+        Executes a circuit in the IBM cloud or locally, parsing V2 primitive results.
+        """
+        x = int(shots)
+
+        if machine == "local":
+            from qiskit_aer import AerSimulator
+            from qiskit_aer.noise import NoiseModel
+            from qiskit.primitives import BackendSamplerV2
+
+            # 1. Cargar el ruido real del backend IBM Fez
+            backend_real = self.service.backend("ibm_fez")
+            noise_model = NoiseModel.from_backend(backend_real)
+
+            # 2. Si existe un layout físico calculado por la política, lo aplicamos
+            #    y reducimos el coupling_map al subconjunto de qubits usados.
+            flat_layout = self._flatten_layout(layout_fisico) if layout_fisico is not None else None
+            if flat_layout is not None:
+                used_qubits = sorted(set(flat_layout))
+                remap = {old: new for new, old in enumerate(used_qubits)}
+                reduced_coupling = [
+                    (remap[u], remap[v])
+                    for u, v in backend_real.coupling_map
+                    if u in remap and v in remap
+                ]
+
+                backend = AerSimulator(
+                    noise_model=noise_model,
+                    coupling_map=reduced_coupling,
+                    method='matrix_product_state'
+                )
+                qc_basis = transpile(
+                    circuit,
+                    backend=backend,
+                    optimization_level=0,
+                    initial_layout=flat_layout
+                )
+            else:
+                backend = AerSimulator(
+                    noise_model=noise_model,
+                    coupling_map=backend_real.coupling_map,
+                    method='matrix_product_state'
+                )
+                qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+
+            sampler = BackendSamplerV2(backend=backend)
+            job = sampler.run([qc_basis], shots=x)
+            
+        else:
+            # Load your IBM Quantum account
+            service = self.service
+            backend = service.backend(machine)
+            sampler = Sampler(mode=backend)
+            
+            with self.transpile_lock:
+                if layout_fisico is not None:
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0, initial_layout=layout_fisico)
+                else:
+                    qc_basis = transpile(circuit, backend=backend, optimization_level=0)
+
+            while True:
+                with self.condition:   
+                    if self.queued_jobs < 3:
+                        self.queued_jobs += 1
+                        job = sampler.run([qc_basis], shots=x)
+                        break
+                    else:
+                        self.condition.wait()
+
+        # ====================================================================
+        # BLOQUE UNIFICADO DE PROCESAMIENTO (Para LOCAL e IBM real)
+# ====================================================================
+        # BLOQUE UNIFICADO DE PROCESAMIENTO (Para LOCAL e IBM real)
+        # ====================================================================
+        id = job.job_id()
+        provider = 'ibm'
+        user_shots = [shots] * len(circuit_names)
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        ids_file = os.path.join(script_dir, 'ids.txt')
+        
+        # Recuperar el nombre exacto del modo para el CSV
+        if layout_fisico is not None and isinstance(layout_fisico[0], dict) and 'mode' in layout_fisico[0]:
+            modo_inferido = layout_fisico[0]['mode']
+        else:
+            modo_inferido = "Global_o_Simulado"
+
+        with open(ids_file, 'a') as file:
+            # 🔑 AQUÍ METEMOS EL LAYOUT Y EL MODO EN EL ARCHIVO TEMPORAL
+            file.write(json.dumps({id:(users,qubit_number, user_shots, provider, circuit_names, layout_fisico, modo_inferido)}))
+            file.write('\n')
+        result = job.result()
+        data_bin = result[0].data
+        
+        creg_names = [k for k in dir(data_bin) if not k.startswith('_') and hasattr(getattr(data_bin, k), 'get_bitstrings')]
+        bitstrings_por_registro = {name: getattr(data_bin, name).get_bitstrings() for name in creg_names}
+        counts_combinados = {}
+        
+        if creg_names:
+            primer_nombre = creg_names[0]
+            num_shots = len(bitstrings_por_registro[primer_nombre])
+            
+            # Buscamos los registros de datos puros (ignorando todos los chivatos)
+            registros_datos = [name for name in creg_names if not name.startswith('c_flag')]
+            
+            for i in range(num_shots):
+                # 1. Filtro Global (Para los modos robusto, t1_decay, dd, etc.)
+                if 'c_flag' in creg_names and '1' in bitstrings_por_registro['c_flag'][i]:
+                    continue
+                    
+                # 2. Filtro Local Independiente (Para el modo dynamic_local)
+                island_validity = []
+                for j in range(len(qubit_number)):
+                    flag_name = f'c_flag_{j}'
+                    if flag_name in creg_names and '1' in bitstrings_por_registro[flag_name][i]:
+                        island_validity.append(False) # Isla j abortada por ruido
+                    else:
+                        island_validity.append(True)  # Isla j limpia
+                
+                # Si TODAS las islas se abortaron en este shot, no procesamos nada
+                if not any(island_validity):
+                    continue
+                    
+                raw_bitstring = "".join([bitstrings_por_registro[name][i] for name in registros_datos])
+                
+                # Enmascaramiento de las islas corruptas con 'X'
+                parts = []
+                current_idx = len(raw_bitstring)
+                for j, num_bits in enumerate(qubit_number):
+                    start = current_idx - num_bits
+                    end = current_idx
+                    
+                    if island_validity[j]:
+                        parts.insert(0, raw_bitstring[start:end]) # Datos reales
+                    else:
+                        parts.insert(0, 'X' * num_bits) # Datos corruptos enmascarados
+                        
+                    current_idx -= num_bits
+                    
+                bitstring_final = "".join(parts)
+                
+                if bitstring_final in counts_combinados:
+                    counts_combinados[bitstring_final] += 1
+                else:
+                    counts_combinados[bitstring_final] = 1
+                    
+        counts = counts_combinados
+
+        # Liberar la cola solo si estamos en hardware real
+        if machine != "local":
+            with self.condition:
+                self.queued_jobs -= 1
+                self.condition.notify()
+
+        # Limpiar el ID del archivo
+        with open(ids_file, 'r') as file:
+            lines = file.readlines()
+        with open(ids_file, 'w') as file:
+            for line in lines:
+                line_dict = json.loads(line.strip())
+                if list(line_dict.keys())[0] != id:
+                    file.write(line)
+
+        return counts
